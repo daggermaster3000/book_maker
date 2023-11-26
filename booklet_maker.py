@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import math
 import sys
-
+import os
 from PyPDF4 import PdfFileWriter, PdfFileReader
+
+import PySimpleGUI as sg
 
 
 class Sheet(object):
@@ -74,10 +76,11 @@ Print pages %d to %d (however many copies you need).
 Put them back in, rotated/flipped in order to print on the other side.
 Print pages %d to %d.
 """ % (1, len(sheets), len(sheets) + 1, len(sheets) * 2)
+    return instructions
     print(instructions)
 
 
-def make_booklet(input_name, output_name, blanks=0):
+def make_booklet(input_name, output_name,window, blanks=0 ):
     reader = PdfFileReader(open(input_name, "rb"))
     pages = [reader.getPage(p) for p in range(0, reader.getNumPages())]
     for i in range(0, blanks):
@@ -94,14 +97,19 @@ def make_booklet(input_name, output_name, blanks=0):
 
     page_size = (output_width, output_height)
     # We want to group fronts and backs together.
+    i = 0
     for sheet in sheets:
+        window['-PBAR-'].update(current_count=(i + (1/reader.getNumPages()*100)))
         add_double_page(writer, page_size, sheet.back)
+        i+=1
 
     for sheet in sheets:
+        window['-PBAR-'].update(current_count=i + (1/reader.getNumPages()*100))
         add_double_page(writer, page_size, sheet.front)
-
+        i+=1
     writer.write(open(output_name, "wb"))
-    print_instructions(sheets)
+    
+    return print_instructions(sheets)
 
 
 USAGE = """
@@ -113,13 +121,30 @@ Usage:
 booklet_maker.py input.pdf output.pdf [blank pages to insert at start]
 """
 
-if __name__ == '__main__':
-    if len(sys.argv) < 3:
-        print(USAGE)
-        sys.exit(1)
 
-    if len(sys.argv) == 4:
-        blanks = int(sys.argv[3])
-    else:
-        blanks = 0
-    make_booklet(sys.argv[1], sys.argv[2], blanks)
+if __name__ == '__main__':
+    # All the stuff inside your window.
+    layout = [  
+                [sg.Text('Input pdf        '), sg.InputText(key="input_pdf"), sg.FilesBrowse()],
+                [sg.Text('Output Folder'), sg.InputText(key="output_folder"), sg.FolderBrowse()],
+                [sg.Text('Blanks'), sg.Input(4,key='-BLANKS-',size=5)],
+                [sg.Button('Ok'), sg.Button('Cancel')],
+                [sg.ProgressBar(100, orientation='h', expand_x=True, size=(20, 20),  key='-PBAR-', bar_color=("green","white"))], ]
+
+    # Create the Window
+    window = sg.Window('Booklet maker', layout)
+    # Event Loop to process "events" and get the "values" of the inputs
+    while True:
+        event, values = window.read()
+        if event == 'Ok':
+            inputpdf = values["input_pdf"]
+            filename = os.path.split(inputpdf)[-1]
+            outputfolder = values["output_folder"]
+            blanks = values["-BLANKS-"]
+            instructions = make_booklet(inputpdf, os.path.join(outputfolder,"booklet_"+filename),window ,int(blanks))
+            sg.popup("Book successfully converted to booklet\n"+instructions)
+            window['-PBAR-'].update(current_count=0)
+        if event == sg.WIN_CLOSED or event == 'Cancel': # if user closes window or clicks cancel
+            break
+       
+    window.close()

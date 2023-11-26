@@ -1,0 +1,3 @@
+([('booklet_maker',
+   '/Users/quillan/Documents/Gadgets/Books/booklet-maker/dist/booklet_maker',
+   'EXECUTABLE')],)
