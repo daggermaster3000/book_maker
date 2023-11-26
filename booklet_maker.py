@@ -27,7 +27,7 @@ class PageContainer(object):
 def build_booklet(pages):
     # Double sized page, with double-sided printing, fits 4 of the original.
     sheet_count = int(math.ceil(len(pages) / 4.0))
-
+    print(sheet_count)
     booklet = [Sheet() for i in range(0, sheet_count)]
 
     # Assign input pages to sheets
@@ -70,23 +70,18 @@ def add_double_page(writer, page_size, print_page):
         p.mergeTranslatedPage(r_page, width / 2, 0)
 
 
-def print_instructions(sheets):
-    instructions = """
-Print pages %d to %d (however many copies you need).
-Put them back in, rotated/flipped in order to print on the other side.
-Print pages %d to %d.
-""" % (1, len(sheets), len(sheets) + 1, len(sheets) * 2)
-    return instructions
-    print(instructions)
-
-
 def make_booklet(input_name, output_name,window, blanks=0 ):
     reader = PdfFileReader(open(input_name, "rb"))
     pages = [reader.getPage(p) for p in range(0, reader.getNumPages())]
+
+    # blank will insert pages at the beggining of the book (not booklet)
     for i in range(0, blanks):
         pages.insert(0, None)
 
-    sheets = build_booklet(pages)
+    book = [build_booklet(pages[j:j+16]) for j in range(0,len(pages),16)]
+    
+    #for page_id in range(0,len(pages),15):
+        #sheets.append(j for j in build_booklet(pages[page_id-15:page_id]))
 
     writer = PdfFileWriter()
     p0 = reader.getPage(0)
@@ -97,37 +92,27 @@ def make_booklet(input_name, output_name,window, blanks=0 ):
 
     page_size = (output_width, output_height)
     # We want to group fronts and backs together.
-    i = 0
-    for sheet in sheets:
-        window['-PBAR-'].update(current_count=(i + (1/reader.getNumPages()*100)))
-        add_double_page(writer, page_size, sheet.back)
+    i = 1
+    for sheets in book:
+        window['-PBAR-'].update(current_count=((i/(len(book))*100)))
+        for sheet in sheets:
+            add_double_page(writer, page_size, sheet.back)
+            add_double_page(writer, page_size, sheet.front)
         i+=1
 
-    for sheet in sheets:
-        window['-PBAR-'].update(current_count=i + (1/reader.getNumPages()*100))
-        add_double_page(writer, page_size, sheet.front)
-        i+=1
     writer.write(open(output_name, "wb"))
     
-    return print_instructions(sheets)
 
 
-USAGE = """
-Converts a PDF document into a booklet form, by re-ordering pages and
-combining into double sized pages suitable for double-sided printing.
 
-Usage:
-
-booklet_maker.py input.pdf output.pdf [blank pages to insert at start]
-"""
 
 
 if __name__ == '__main__':
-    # All the stuff inside your window.
+ 
     layout = [  
                 [sg.Text('Input pdf        '), sg.InputText(key="input_pdf"), sg.FilesBrowse()],
                 [sg.Text('Output Folder'), sg.InputText(key="output_folder"), sg.FolderBrowse()],
-                [sg.Text('Blanks'), sg.Input(4,key='-BLANKS-',size=5)],
+                [sg.Text('Blanks'), sg.Input(0,key='-BLANKS-',size=5)],
                 [sg.Button('Ok'), sg.Button('Cancel')],
                 [sg.ProgressBar(100, orientation='h', expand_x=True, size=(20, 20),  key='-PBAR-', bar_color=("green","white"))], ]
 
@@ -141,8 +126,8 @@ if __name__ == '__main__':
             filename = os.path.split(inputpdf)[-1]
             outputfolder = values["output_folder"]
             blanks = values["-BLANKS-"]
-            instructions = make_booklet(inputpdf, os.path.join(outputfolder,"booklet_"+filename),window ,int(blanks))
-            sg.popup("Book successfully converted to booklet\n"+instructions)
+            make_booklet(inputpdf, os.path.join(outputfolder,"booklet_"+filename),window ,int(blanks))
+            sg.popup("Book successfully converted to booklet !")
             window['-PBAR-'].update(current_count=0)
         if event == sg.WIN_CLOSED or event == 'Cancel': # if user closes window or clicks cancel
             break
